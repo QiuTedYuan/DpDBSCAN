@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
-import numpy as np
 
-from grid_helper import GridHelper
+from data_types import *
 
 
 class Printer:
-    def __init__(self):
+    def __init__(self, dim: int):
+        self.skip = (dim != 2)
         self.fig, self.axs = plt.subplots(2, 3, figsize=(15, 10))
         self.fig_count = 0
 
@@ -14,16 +14,26 @@ class Printer:
         self.fig_count += 1
         return ax
 
+    @staticmethod
+    def reverse_color(c: np.array):
+        return np.array([1. - c[0], 1. - c[1], 1. - c[2], c[3]])
+
+    @staticmethod
+    def get_colors(cnt: int):
+        return plt.cm.get_cmap("Spectral")(np.linspace(0, 1, cnt))
+
     # plot the points where colors represent the clusters
     # labels = clusters where -1 means no cluster
     # radius = alpha in DBSCAN, for drawing the span
     # colors = colors to choose from
-    def plot_points(self, pts: np.ndarray, labels=None, radius=0., colors=None, title=None):
+    def plot_points(self, pts: Points, labels: Labels = None, radius=0., colors=None, title=None):
+        if self.skip:
+            return
         ax = self.next_ax()
-        labels = labels if labels is not None else np.ones(len(pts))
+        labels = labels if labels is not None else np.ones(len(pts), dtype=int)
         # Black removed and is used for noise instead.
         unique_labels = set(labels)
-        colors = [plt.cm.Spectral(x) for x in np.linspace(0, 1, len(unique_labels))]
+        colors = colors if colors is not None else self.get_colors(len(unique_labels))
 
         for label, color in zip(unique_labels, colors):
             if label == -1:
@@ -51,12 +61,13 @@ class Printer:
             ax.set_title(title)
         plt.tight_layout()
 
-    def plotGrid(self, grids: GridHelper, labels, hist=None, title=None):
+    def plot_grid(self, grid_helper: GridHelper, labels: Labels, hist: Histogram = None, title=None):
+        if self.skip:
+            return
         ax = self.next_ax()
-        hist = hist if hist is not None else np.ones(grids.num_grids)
-
+        hist = hist if hist is not None else np.ones(grid_helper.num_grids, dtype=float)
         unique_labels = set(labels)
-        colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_labels))]
+        colors = self.get_colors(len(unique_labels))
 
         max_hist = max(abs(x) for x in hist)
 
@@ -65,19 +76,27 @@ class Printer:
                 continue
 
             class_index = np.where(labels == k)[0]
-            for ci in class_index:
-                pt_x, pt_y = grids.idx2loc_bot_left(ci)
-                # ax.text(pt_x, pt_y, round(hist[ci]), fontsize="xx-small")
-                facecol = col if (hist[ci] > 0) else "green"
-                rectangle = plt.Rectangle((pt_x, pt_y), grids.w, grids.w,
-                                          edgecolor="black", facecolor=facecol, fill=True,
-                                          alpha=abs(hist[ci]) / max_hist)
+            for idx in class_index:
+                low_point = [x * grid_helper.width for x in grid_helper.get_coord(idx)]
+                x = low_point[0]
+                y = low_point[1]
+                x_w = min(grid_helper.width, grid_helper.univ - x)
+                y_w = min(grid_helper.width, grid_helper.univ - y)
+                freq = hist[idx]
+                facecol = col if freq >= 0 else self.reverse_color(col)
+                rectangle = plt.Rectangle((x, y), x_w, y_w,
+                                          edgecolor="black",
+                                          facecolor=facecol,
+                                          fill=True,
+                                          alpha=abs(freq) / max_hist)
                 ax.add_patch(rectangle)
         if title is not None:
             ax.set_title(title)
         plt.tight_layout()
 
     def display(self, u, file=None):
+        if self.skip:
+            return
         plt.setp(self.axs, xlim=[-0.1 * u, 1.1 * u], ylim=[-0.1 * u, 1.1 * u])
-        plt.savefig("./fig/"+file)
+        plt.savefig("./fig/" + file)
         plt.show()
