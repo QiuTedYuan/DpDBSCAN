@@ -1,37 +1,48 @@
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 from shapely import MultiPoint
 from shapely.geometry import box
 from shapely.ops import voronoi_diagram
 from shapely.plotting import plot_polygon
 
+from data_provider import DataProvider
 from datatype_grid import GridSpace
-from datatype_point import Points, PointLabels
+from datatype_point import Points, PointLabels, Point
 from histogram import Histogram, GridLabels
 
 
 class Printer:
-    def __init__(self, pts: Points, output_folder: str, enabled=True, enable_label=True, figsize=(10,6), draw_edge=True):
+    def __init__(self, data_provider: DataProvider, output_folder: str,
+                 enabled, figsize, draw_label, draw_edge, dpi):
         self.output_folder = output_folder
-        self.dim = pts.get_dim()
+        self.pts = data_provider.get_data()
+        self.scales = data_provider.get_scales()
+        self.dim = self.pts.get_dim()
         self.skip = (self.dim > 3) or not enabled
-        self.skip_label = not enable_label
+        self.skip_label = not draw_label
         self.figsize = figsize
+        self.dpi = dpi
         self.draw_edge = draw_edge
+        matplotlib.rcParams.update({'font.size': 12})
         if not self.skip:
-            low, high = pts.get_ranges()
+            scaled_low, scaled_high = self.pts.get_ranges()
+            low = self.get_original_pt(scaled_low)
+            high = self.get_original_pt(scaled_high)
             x_offset = 0.05 * (high[0] - low[0])
             y_offset = 0.05 * (high[1] - low[1])
             self.xlim = [low[0] - x_offset, high[0] + x_offset]
             self.ylim = [low[1] - y_offset, high[1] + y_offset]
-            self.pts = pts
+
+    def get_original_pt(self, pt: Point):
+        return np.true_divide(pt, self.scales)
 
     def save_fig(self, ax, file):
         if self.skip:
             return
         plt.setp(ax, xlim=self.xlim, ylim=self.ylim)
         plt.tight_layout()
-        plt.savefig(self.output_folder + file + ".png", dpi=1200)
+        plt.savefig(self.output_folder + file + ".png", dpi=self.dpi)
 
     @staticmethod
     def reverse_color(c: np.array):
@@ -46,16 +57,15 @@ class Printer:
         return color_map
 
     def plot_3d_labels(self, labels: PointLabels, title):
-        _, ax = plt.subplot(projection='3d')
+        ax = plt.subplot(projection='3d')
         color_map = Printer.get_color_map(set(labels))
-        for pt, label in zip(self.pts.get(), labels):
+        for scaled_pt, label in zip(self.pts.get(), labels):
             color = color_map[label]
+            pt = self.get_original_pt(scaled_pt)
             ax.scatter(pt[0], pt[1], zs=pt[2],
                        marker="x" if label == -1 else "o",
                        edgecolor="black" if self.draw_edge else color,
                        facecolor=color, )
-        # if title is not None:
-        #     ax.set_title(title)
         self.save_fig(ax, title)
 
     # plot the points where colors represent the clusters
@@ -69,8 +79,9 @@ class Printer:
 
         _, ax = plt.subplots(figsize=self.figsize)
         color_map = Printer.get_color_map(set(labels))
-        for pt, label in zip(self.pts.get(), labels):
+        for scaled_pt, label in zip(self.pts.get(), labels):
             color = color_map[label]
+            pt = self.get_original_pt(scaled_pt)
             ax.plot(pt[0], pt[1],
                     "x" if label == -1 else "o",
                     markerfacecolor=color,
@@ -86,7 +97,7 @@ class Printer:
         self.save_fig(ax, title)
 
     def plot_3d_grid(self, grid_space: GridSpace, labels: GridLabels, hist: Histogram, title):
-        _, ax = plt.subplot(projection='3d')
+        ax = plt.subplot(projection='3d')
         color_map = Printer.get_color_map(set(labels.values()))
         max_freq = hist.max_freq()
 
@@ -94,7 +105,7 @@ class Printer:
             if label == -1:
                 continue
             freq = hist.get_by_key(key)
-            x, y, z = grid_space.get_low_point_of_grid(grid_space.decode_from_key(key))
+            x, y, z = self.get_original_pt(grid_space.get_low_point_of_grid(grid_space.decode_from_key(key)))
             color = color_map[label]
             ax.scatter(x, y, zs=z,
                        edgecolor="black" if self.draw_edge else color,
@@ -121,11 +132,11 @@ class Printer:
             if freq == 0:
                 continue
 
-            x, y = grid_space.get_low_point_of_grid(grid_space.decode_from_key(key))
-            x_high, y_high = grid_space.high
+            x, y = self.get_original_pt(grid_space.get_low_point_of_grid(grid_space.decode_from_key(key)))
+            x_high, y_high = self.get_original_pt(grid_space.high)
             color = color_map[label] if freq >= 0 else self.reverse_color(color_map[label])
-            x_width = min(grid_space.width, x_high - x)
-            y_width = min(grid_space.width, y_high - y)
+            x_width = min(grid_space.width / self.scales[0], x_high - x)
+            y_width = min(grid_space.width / self.scales[1], y_high - y)
 
             rectangle = plt.Rectangle((x, y), x_width, y_width,
                                       edgecolor="black" if self.draw_edge else color,
@@ -135,9 +146,11 @@ class Printer:
             ax.add_patch(rectangle)
         self.save_fig(ax, title)
 
-    def plot_centers(self, centers, title: str):
+    def plot_centers(self, scaled_centers, title: str):
         if self.skip or self.dim == 3:
             return
+
+        centers = [self.get_original_pt(center) for center in scaled_centers]
 
         _, ax = plt.subplots(figsize=self.figsize)
         plt.setp(ax, xlim=self.xlim, ylim=self.ylim)

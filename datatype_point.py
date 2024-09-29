@@ -2,14 +2,14 @@ import numpy as np
 from nptyping import NDArray, Shape, typing_
 from sklearn.cluster import DBSCAN
 
-Point = NDArray[Shape["N, D"], typing_.Number]
+Point = NDArray[Shape["D"], typing_.Number]
 PointLabel = int
 PointLabels = NDArray[Shape["N"], typing_.Int]
 
 
 class Points:
 
-    def __init__(self, inner: Point):
+    def __init__(self, inner: NDArray[Shape["N, D"], typing_.Number]):
         self.inner = inner
 
     def get(self):
@@ -21,6 +21,7 @@ class Points:
     def get_size(self):
         return self.inner.shape[0]
 
+    # Point range should be an input to avoid privacy leakage
     def get_ranges(self) -> (Point, Point):
         return self.inner.min(0), self.inner.max(0)
 
