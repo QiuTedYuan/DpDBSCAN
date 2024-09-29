@@ -107,7 +107,7 @@ class LongitudeLatitudeDataProvider(DataProvider):
 
     @classmethod
     def crash(cls):
-        df = pd.read_csv("datasets/collisions_20240923.csv")
+        df = pd.read_csv("datasets/crashes_240928.csv")
         data = df[["LONGITUDE", "LATITUDE"]].to_numpy()
         long_lat = data[((data[:, 0] > -74.2) & (data[:, 0] < -73) & (data[:, 1] > 40) & (data[:, 1] < 41))]
         params = {"alpha": 0.1 / cls.km_per_latitude(), "min_samples": 300, "grid_scale": 1}
@@ -144,7 +144,7 @@ class ArffDataProvider(DataProvider):
             return x
 
     def __init__(self, path, params):
-        data, meta = arff.loadarff('../clustering-benchmark/src/main/resources/datasets/artificial/' + path)
+        data, meta = arff.loadarff('clustering-benchmark/src/main/resources/datasets/artificial/' + path)
         df = pd.DataFrame(data)
         self.pts = Points(df.iloc[:, :-1].to_numpy())
         self.labels = df.iloc[:, -1].map(ArffDataProvider.normalize_enum).astype(int).to_numpy()

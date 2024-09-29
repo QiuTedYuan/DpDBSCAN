@@ -141,7 +141,7 @@ if not args.skip_dbscan:
     dbs = DBSCAN(eps=alpha, min_samples=min_pts)
     dbs.fit(pts.get())
     dbscan_labels = Points.compute_dbscan_labels(dbs)
-    logging.info("[DBSCAN] time: %.2f seconds", time.time() - timer)
+    logging.info("[DBSCAN] time: %.2g seconds", time.time() - timer)
     dbscan_label_set = set(dbscan_labels)
     dbscan_label_set.discard(-1)
     logging.info("[DBSCAN] num clusters: %d", len(dbscan_label_set))
@@ -155,7 +155,7 @@ if not args.skip_kmeans:
     timer = time.time()
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(pts.get())
-    logging.info("[KMeans] time: %.2f seconds", time.time() - timer)
+    logging.info("[KMeans] time: %.2g seconds", time.time() - timer)
 
     printer.plot_labels(labels=kmeans.labels_, radius=0., title="kmeans_" + str(n_clusters))
     if data_provider.has_true_labels():
@@ -172,7 +172,7 @@ if not args.skip_dp_dbscan:
     num_grids = grid_space.num_grids
     logging.info("[DP-DBSCAN] grid width: %.2g, num_grids: %d", grid_space.width, num_grids)
     grid_counts = Histogram.build_from_pts(pts, grid_space)
-    logging.info("[DP-DBSCAN] histogram collect time: %.2f seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] histogram collect time: %.2g seconds", time.time() - step_timer)
 
     # add noise
     step_timer = time.time()
@@ -184,18 +184,18 @@ if not args.skip_dp_dbscan:
     noisy_counts = NoisyHistogram.build_with_noise(grid_counts, noises)
     noisy_sum = SumHistogram.build_from_counts(noisy_counts, grid_space)
 
-    logging.info("[DP-DBSCAN] add noise time: %.2f seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] add noise time: %.2g seconds", time.time() - step_timer)
 
     # find superset of core grids and give unique labels
     step_timer = time.time()
     grid_labels = GridLabels.label_high_freq(noisy_sum, min_pts + noise_bound)
-    logging.info("[DP-DBSCAN] find core grids time: %.2f seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] find core grids time: %.2g seconds", time.time() - step_timer)
 
     # merge neighboring core-grids by union-find
     step_timer = time.time()
     num_clusters = grid_labels.merge_neighbors(grid_space)
-    logging.info("[DP-DBSCAN] merge grids time: %.2f seconds", time.time() - step_timer)
-    logging.info("[DP-DBSCAN] time: %.2f seconds", time.time() - timer)
+    logging.info("[DP-DBSCAN] merge grids time: %.2g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] time: %.2g seconds", time.time() - timer)
     logging.info("[DP-DBSCAN] num clusters: %d", num_clusters)
 
     printer.plot_grid(grid_space, labels=GridLabels.label_all(grid_space), hist=noisy_counts, title="noisy_counts")
@@ -228,7 +228,7 @@ if not args.skip_dp_kmeans:
     kmeans = diffprivlib.models.k_means.KMeans(n_clusters, epsilon=epsilon, bounds=(low, high), random_state=seed)
     kmeans.fit(pts.get())
 
-    logging.info("[DPKmeans] time: %.2f seconds", time.time() - timer)
+    logging.info("[DPKmeans] time: %.2g seconds", time.time() - timer)
 
     printer.plot_centers(scaled_centers=kmeans.cluster_centers_,
                          title="dp_kmeans_" + str(epsilon) + "_" + str(n_clusters) + "_centers")
