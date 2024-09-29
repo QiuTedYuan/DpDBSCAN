@@ -4,6 +4,7 @@ import os
 import time
 from datetime import datetime
 
+import diffprivlib
 from sklearn import metrics
 from sklearn.cluster import DBSCAN, KMeans
 
