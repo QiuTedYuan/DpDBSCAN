@@ -18,7 +18,8 @@ from plot_data import Printer
 # program args
 parser = argparse.ArgumentParser(description='DPDBSCAN Experiments.')
 parser.add_argument('-d', '--dataset', help="Dataset, default moons", required=False,
-                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabspot', 'crash'], default='moons')
+                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabspot', 'crash'],
+                    default='moons')
 parser.add_argument('-s', '--seed', help="Random Seed, default 0",
                     required=False, default=0, type=int)
 parser.add_argument('--noise', help="Noise to generate DP histogram, default Laplace",
@@ -29,9 +30,19 @@ parser.add_argument('--delta', help="Delta for DP mechanisms, default 0",
                     required=False, default=0.0, type=float)
 parser.add_argument('--beta', help="Beta for Calculating Error Bounds, default 0.5",
                     required=False, default=0.5, type=float)
-parser.add_argument('-p', '--plot',  help="plot results",
-                    action='store_true')
+parser.add_argument('--alpha', help="override alpha for DBSCAN",
+                    required=False, default=None, type=float)
+parser.add_argument('--minpts', help="override minpts for DBSCAN",
+                    required=False, default=None, type=int)
+parser.add_argument('--grid_scale', help="override grid_scale for DP-DBSCAN",
+                    required=False, default=None, type=float)
 
+parser.add_argument('-p', '--plot', help="plot results",
+                    action='store_true')
+parser.add_argument('--debug', help="log level debug",
+                    action='store_true')
+parser.add_argument('--info', help="log level info",
+                    action='store_true')
 parser.add_argument('--skip_dbscan', action='store_true')
 parser.add_argument('--skip_kmeans', action='store_true')
 parser.add_argument('--skip_dp_dbscan', action='store_true')
@@ -87,13 +98,13 @@ match args.dataset:
         fig_size = (10, 10)
         draw_label = False
         draw_edge = False
-        dpi = 300
+        dpi = 100
     case 'cabspot':
         data_provider = LongitudeLatitudeDataProvider.cabspot()
         fig_size = (10, 10)
         draw_label = False
         draw_edge = False
-        dpi = 300
+        dpi = 100
     case _:
         raise Exception("Unsupported dataset")
 
@@ -101,12 +112,18 @@ pts = data_provider.get_data()
 dim = pts.get_dim()
 low, high = pts.get_ranges()
 params = data_provider.get_params()
-alpha = params["alpha"]
-min_pts = params["min_samples"]
+alpha = params["alpha"] if args.alpha is None else args.alpha
+min_pts = params["min_samples"] if args.minpts is None else args.minpts
+grid_scale = params["grid_scale"] if args.grid_scale is None else args.grid_scale
 
-log_level = logging.INFO
+if args.debug:
+    log_level = logging.DEBUG
+elif args.info:
+    log_level = logging.INFO
+else:
+    log_level = logging.ERROR
 logging.basicConfig(level=log_level)
-logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.2g, min_pts=%d',
+logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.5g, min_pts=%d',
              pts.get_size(), dim, low, high, alpha, min_pts)
 
 seed, epsilon, delta, beta = args.seed, args.epsilon, args.delta, args.beta
@@ -116,6 +133,8 @@ match args.noise:
     case 'Geometric':
         noise_gen: NoiseGenerator = GeometricNoise(seed, 1, epsilon)
     case 'Gaussian':
+        if delta <= 0:
+            raise Exception("delta is required for Gaussian mechanism.")
         noise_gen: NoiseGenerator = GaussianNoise(seed, 1, epsilon, args.delta)
     case _:
         raise Exception("Unsupported noise type" + args.mechanism + ", try Laplace/Geometric/Gaussian")
@@ -142,7 +161,7 @@ if not args.skip_dbscan:
     dbs = DBSCAN(eps=alpha, min_samples=min_pts)
     dbs.fit(pts.get())
     dbscan_labels = Points.compute_dbscan_labels(dbs)
-    logging.info("[DBSCAN] time: %.2g seconds", time.time() - timer)
+    logging.info("[DBSCAN] time: %.5g seconds", time.time() - timer)
     dbscan_label_set = set(dbscan_labels)
     dbscan_label_set.discard(-1)
     logging.info("[DBSCAN] num clusters: %d", len(dbscan_label_set))
@@ -156,7 +175,7 @@ if not args.skip_kmeans:
     timer = time.time()
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(pts.get())
-    logging.info("[KMeans] time: %.2g seconds", time.time() - timer)
+    logging.info("[KMeans] time: %.5g seconds", time.time() - timer)
 
     printer.plot_labels(labels=kmeans.labels_, radius=0., title="kmeans_" + str(n_clusters))
     if data_provider.has_true_labels():
@@ -169,11 +188,11 @@ if not args.skip_dp_dbscan:
 
     # build grids
     step_timer = time.time()
-    grid_space = GridSpace(dim, low, high, alpha, params["grid_scale"])
+    grid_space = GridSpace(dim, low, high, alpha, grid_scale)
     num_grids = grid_space.num_grids
-    logging.info("[DP-DBSCAN] grid width: %.2g, num_grids: %d", grid_space.width, num_grids)
+    logging.info("[DP-DBSCAN] grid width: %.5g, num_grids: %d", grid_space.width, num_grids)
     grid_counts = Histogram.build_from_pts(pts, grid_space)
-    logging.info("[DP-DBSCAN] histogram collect time: %.2g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] histogram collect time: %.5g seconds", time.time() - step_timer)
 
     # add noise
     step_timer = time.time()
@@ -185,18 +204,18 @@ if not args.skip_dp_dbscan:
     noisy_counts = NoisyHistogram.build_with_noise(grid_counts, noises)
     noisy_sum = SumHistogram.build_from_counts(noisy_counts, grid_space)
 
-    logging.info("[DP-DBSCAN] add noise time: %.2g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] add noise time: %.5g seconds", time.time() - step_timer)
 
     # find superset of core grids and give unique labels
     step_timer = time.time()
     grid_labels = GridLabels.label_high_freq(noisy_sum, min_pts + noise_bound)
-    logging.info("[DP-DBSCAN] find core grids time: %.2g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] find core grids time: %.5g seconds", time.time() - step_timer)
 
     # merge neighboring core-grids by union-find
     step_timer = time.time()
     num_clusters = grid_labels.merge_neighbors(grid_space)
-    logging.info("[DP-DBSCAN] merge grids time: %.2g seconds", time.time() - step_timer)
-    logging.info("[DP-DBSCAN] time: %.2g seconds", time.time() - timer)
+    logging.info("[DP-DBSCAN] merge grids time: %.5g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN] time: %.5g seconds", time.time() - timer)
     logging.info("[DP-DBSCAN] num clusters: %d", num_clusters)
 
     printer.plot_grid(grid_space, labels=GridLabels.label_all(grid_space), hist=noisy_counts, title="noisy_counts")
@@ -212,8 +231,8 @@ if not args.skip_dp_dbscan:
     elif not args.skip_dbscan:
         point_labels = grid_labels.obtain_point_labels(pts, grid_space)
         printer.plot_labels(labels=point_labels, radius=0., title="dp_dbscan_" + str(epsilon) + "_pts")
-        print('[DP-DBSCAN] ARI = ', metrics.adjusted_rand_score(dbscan_labels, point_labels))
-        print('[DP-DBSCAN] AMI = ', metrics.adjusted_mutual_info_score(dbscan_labels, point_labels))
+        print('[DP-DBSCAN] ARI(wrt DBSCAN) = ', metrics.adjusted_rand_score(dbscan_labels, point_labels))
+        print('[DP-DBSCAN] AMI(wrt DBSCAN) = ', metrics.adjusted_mutual_info_score(dbscan_labels, point_labels))
 
     if log_level == logging.DEBUG:
         sum_hist = SumHistogram.build_from_counts(grid_counts, grid_space)
@@ -229,7 +248,7 @@ if not args.skip_dp_kmeans:
     kmeans = diffprivlib.models.k_means.KMeans(n_clusters, epsilon=epsilon, bounds=(low, high), random_state=seed)
     kmeans.fit(pts.get())
 
-    logging.info("[DPKmeans] time: %.2g seconds", time.time() - timer)
+    logging.info("[DPKmeans] time: %.5g seconds", time.time() - timer)
 
     printer.plot_centers(scaled_centers=kmeans.cluster_centers_,
                          title="dp_kmeans_" + str(epsilon) + "_" + str(n_clusters) + "_centers")

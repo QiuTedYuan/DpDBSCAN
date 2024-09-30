@@ -59,7 +59,7 @@ class SimpleDataProvider(DataProvider):
     def circles(cls, n_samples, seed):
         x, labels = datasets.make_circles(n_samples=n_samples, factor=0.5, noise=0.05, random_state=seed)
         pts = Points(StandardScaler().fit_transform(x))
-        params = {"alpha": 0.2, "min_samples": 7, "grid_scale": 0.8}
+        params = {"alpha": 0.2, "min_samples": 9, "grid_scale": 0.8}
         return cls(pts, labels, params)
 
     @classmethod

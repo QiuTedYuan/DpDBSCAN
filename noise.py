@@ -113,7 +113,7 @@ class LaplaceNoise(SubExponentialNoise):
         self.epsilon: float = epsilon
         self.sensitivity: float = sensitivity
         self.epsilon_: float = 1. * epsilon / sensitivity
-        super().__init__(2. / self.epsilon_, 2. / self.epsilon_)
+        super().__init__(2. / self.epsilon_, np.sqrt(2.) / self.epsilon_)
 
     def generate(self, size: int) -> Noises:
         return self.random_state.laplace(0, 1. / self.epsilon_, size)
