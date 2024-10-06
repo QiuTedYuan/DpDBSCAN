@@ -3,7 +3,7 @@ from unionfind import unionfind
 
 from datatype_grid import GridSpace, GridKey, GridCoord
 from datatype_point import Points, PointLabels
-from noise import Noises
+from noise import Noises, NoiseGenerator
 
 
 class Histogram:
@@ -18,6 +18,9 @@ class Histogram:
 
     def max_freq(self) -> float:
         return max(abs(max(self._inner.values())), abs(min(self._inner.values())))
+
+    def size(self):
+        return len(self._inner)
 
     def items(self):
         return self._inner.items()
@@ -60,13 +63,30 @@ class SumHistogram(Histogram):
 class NoisyHistogram(Histogram):
     # currently we use O(u) time to visit every cell, can be improved to O(n)
     @classmethod
-    def build_with_noise(cls, histogram: Histogram, noises: Noises, threshold = None):
+    def naive_build(cls, histogram: Histogram, noise_gen: NoiseGenerator, universe: int):
         res = cls()
-        # use geometric noise for better concentration
+        noises = noise_gen.generate(universe)
         for key, noise in enumerate(noises):
             noisy_freq: float = histogram.get_by_key(key) + noise
-            if threshold is None or noisy_freq >= threshold:
+            res.increment(key, noisy_freq)
+        return res
+
+    @classmethod
+    def linear_time_build(cls, histogram: Histogram, noise_gen: NoiseGenerator, universe: int, gamma):
+        res = cls()
+        for key, freq in histogram.items():
+            noisy_freq = freq + noise_gen.generate(1)[0]
+            if noisy_freq >= gamma:
                 res.increment(key, noisy_freq)
+        empty_count = universe - histogram.size()
+        p = 0.5 * noise_gen.tail_bound(gamma)
+        m = noise_gen.generate_binomial(empty_count, p)
+        for idx in range(m):
+            j = np.random.randint(universe)
+            while j in histogram.keys() or j in res.keys():
+                j = np.random.randint(universe)
+            noisy_freq = noise_gen.generate_large(gamma)
+            res.increment(j, noisy_freq)
         return res
 
 

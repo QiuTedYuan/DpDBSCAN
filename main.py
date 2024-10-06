@@ -43,6 +43,8 @@ parser.add_argument('--debug', help="log level debug",
                     action='store_true')
 parser.add_argument('--info', help="log level info",
                     action='store_true')
+parser.add_argument('--linear', help="use linear time histogram",
+                    action='store_true')
 parser.add_argument('--skip_dbscan', action='store_true')
 parser.add_argument('--skip_kmeans', action='store_true')
 parser.add_argument('--skip_dp_dbscan', action='store_true')
@@ -122,6 +124,12 @@ elif args.info:
     log_level = logging.INFO
 else:
     log_level = logging.ERROR
+
+RUN_DBSCAN = not args.skip_dbscan
+RUN_DP_DBSCAN = not args.skip_dp_dbscan
+RUN_KMEANS = not args.skip_kmeans
+RUN_DP_KMEANS = not args.skip_dp_kmeans
+
 logging.basicConfig(level=log_level)
 logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.5g, min_pts=%d',
              pts.get_size(), dim, low, high, alpha, min_pts)
@@ -155,7 +163,7 @@ else:
     true_labels = np.arange(0, pts.get_size())
     n_clusters = 3
 
-if not args.skip_dbscan:
+if RUN_DBSCAN:
 
     timer = time.time()
     dbs = DBSCAN(eps=alpha, min_samples=min_pts)
@@ -170,7 +178,7 @@ if not args.skip_dbscan:
         print('[DBSCAN] ARI = ', metrics.adjusted_rand_score(true_labels, dbscan_labels))
         print('[DBSCAN] AMI = ', metrics.adjusted_mutual_info_score(true_labels, dbscan_labels))
 
-if not args.skip_kmeans:
+if RUN_KMEANS:
 
     timer = time.time()
     kmeans = KMeans(n_clusters=n_clusters)
@@ -182,7 +190,7 @@ if not args.skip_kmeans:
         print('[KMeans] ARI = ', metrics.adjusted_rand_score(true_labels, kmeans.labels_))
         print('[KMeans] AMI = ', metrics.adjusted_mutual_info_score(true_labels, kmeans.labels_))
 
-if not args.skip_dp_dbscan:
+if RUN_DP_DBSCAN:
 
     timer = time.time()
 
@@ -198,10 +206,14 @@ if not args.skip_dp_dbscan:
     step_timer = time.time()
 
     # directly adding noise to sum_hist, which has sensitivity neighbor
-    noises = noise_gen.generate(grid_space.num_grids)
-    noise_bound = noise_gen.max_sum_noise(beta, noises.shape[0], len(grid_space.neighbor_offsets))
+    if args.linear:
+        gamma = noise_gen.max_noise(beta, grid_space.num_grids)
+        noisy_counts = NoisyHistogram.linear_time_build(grid_counts, noise_gen, grid_space.num_grids, gamma)
+        noise_bound = gamma * len(grid_space.neighbor_offsets)
+    else:
+        noisy_counts = NoisyHistogram.naive_build(grid_counts, noise_gen, grid_space.num_grids)
+        noise_bound = noise_gen.max_sum_noise(beta, grid_space.num_grids, len(grid_space.neighbor_offsets))
 
-    noisy_counts = NoisyHistogram.build_with_noise(grid_counts, noises)
     noisy_sum = SumHistogram.build_from_counts(noisy_counts, grid_space)
 
     logging.info("[DP-DBSCAN] add noise time: %.5g seconds", time.time() - step_timer)
@@ -228,7 +240,7 @@ if not args.skip_dp_dbscan:
         printer.plot_labels(labels=point_labels, radius=0., title="dp_dbscan_" + str(epsilon) + "_pts")
         print('[DP-DBSCAN] ARI = ', metrics.adjusted_rand_score(true_labels, point_labels))
         print('[DP-DBSCAN] AMI = ', metrics.adjusted_mutual_info_score(true_labels, point_labels))
-    elif not args.skip_dbscan:
+    elif RUN_DBSCAN:
         point_labels = grid_labels.obtain_point_labels(pts, grid_space)
         printer.plot_labels(labels=point_labels, radius=0., title="dp_dbscan_" + str(epsilon) + "_pts")
         print('[DP-DBSCAN] ARI(wrt DBSCAN) = ', metrics.adjusted_rand_score(dbscan_labels, point_labels))
@@ -236,12 +248,15 @@ if not args.skip_dp_dbscan:
 
     if log_level == logging.DEBUG:
         sum_hist = SumHistogram.build_from_counts(grid_counts, grid_space)
+        logging.debug("[DP-DBSCAN] naive max noise: %.2f, linear time max noise: %.2f",
+                      noise_gen.max_sum_noise(beta, grid_space.num_grids, len(grid_space.neighbor_offsets)),
+                      noise_gen.max_noise(beta, grid_space.num_grids) * len(grid_space.neighbor_offsets))
         logging.debug("[DP-DBSCAN] max noise seen: %.2f, max noise expected: %.2f, min_pts: %d",
                       max_diff(sum_hist, noisy_sum), noise_bound, min_pts)
         printer.plot_grid(grid_space, labels=GridLabels.label_all(grid_space), hist=sum_hist, title="neighbor_sum")
 
 # k-means
-if not args.skip_dp_kmeans:
+if RUN_DP_KMEANS:
 
     timer = time.time()
 

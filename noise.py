@@ -53,10 +53,23 @@ def sub_exponential_bound_inverse(beta, k: int, nu: float, alpha: float):
 
 
 class NoiseGenerator(ABC):
+    random_state: np.random.RandomState = None
+
+    def generate_binomial(self, n, p):
+        return self.random_state.binomial(n, p)
 
     @abstractmethod
     def generate(self, size: int) -> Noises:
         pass
+
+    def generate_large(self, threshold: float) -> float:
+        # get p=Pr[Noise > threshold]=0.5*tail_bound
+        p = 0.5 * self.tail_bound(threshold)
+        # u = [F(z) - (1-p)] / p => F(z) = up + 1 - p
+        u = self.random_state.uniform(0, 1)
+        f_z = u * p + 1 - p
+        # F(z) = 1 - 0.5 * tail(z), get reverse
+        return self.tail_bound_inverse(2 * (1 - f_z))
 
     @abstractmethod
     def variance(self):

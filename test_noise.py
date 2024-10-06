@@ -39,6 +39,12 @@ def test_sub_exponential():
     assert float_eq(beta, beta_)
 
 
+def test_gen_large():
+    lap = LaplaceNoise(sensitivity=1., epsilon=1., seed=0)
+    large = lap.generate_large(10)
+    assert large >= 10
+
+
 def test_lap():
     lap = LaplaceNoise(sensitivity=1., epsilon=1., seed=0)
     assert lap.variance() == 2.
@@ -88,6 +94,7 @@ def test_bounds():
     plt.plot(xrng, gauss.max_noise(xrng, n), label="Gaussian bound")
     plt.legend(loc='best')
     plt.show()
+
 
 def test_compare_noise():
     n = 100000
