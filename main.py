@@ -18,7 +18,7 @@ from plot_data import Printer
 # program args
 parser = argparse.ArgumentParser(description='DPDBSCAN Experiments.')
 parser.add_argument('-d', '--dataset', help="Dataset, default moons", required=False,
-                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabspot', 'crash'],
+                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabspot_ends', 'cabspot_raw', 'crash'],
                     default='moons')
 parser.add_argument('-s', '--seed', help="Random Seed, default 0",
                     required=False, default=0, type=int)
@@ -101,8 +101,14 @@ match args.dataset:
         draw_label = False
         draw_edge = False
         dpi = 100
-    case 'cabspot':
-        data_provider = LongitudeLatitudeDataProvider.cabspot()
+    case 'cabspot_ends':
+        data_provider = LongitudeLatitudeDataProvider.cabspot_ends()
+        fig_size = (10, 10)
+        draw_label = False
+        draw_edge = False
+        dpi = 100
+    case 'cabspot_raw':
+        data_provider = LongitudeLatitudeDataProvider.cabspot_raw()
         fig_size = (10, 10)
         draw_label = False
         draw_edge = False
@@ -230,8 +236,8 @@ if RUN_DP_DBSCAN:
     logging.info("[DP-DBSCAN] time: %.5g seconds", time.time() - timer)
     logging.info("[DP-DBSCAN] num clusters: %d", num_clusters)
 
-    printer.plot_grid(grid_space, labels=GridLabels.label_all(grid_space), hist=noisy_counts, title="noisy_counts")
-    printer.plot_grid(grid_space, labels=GridLabels.label_all(grid_space), hist=noisy_sum, title="noisy_sum")
+    printer.plot_grid(grid_space, labels=GridLabels.label_all(noisy_counts), hist=noisy_counts, title="noisy_counts")
+    printer.plot_grid(grid_space, labels=GridLabels.label_all(noisy_sum), hist=noisy_sum, title="noisy_sum")
     printer.plot_grid(grid_space, labels=grid_labels, hist=MockHistogram(),
                       title="dp_dbscan_" + str(epsilon) + "_grids")
 
@@ -253,7 +259,7 @@ if RUN_DP_DBSCAN:
                       noise_gen.max_noise(beta, grid_space.num_grids) * len(grid_space.neighbor_offsets))
         logging.debug("[DP-DBSCAN] max noise seen: %.2f, max noise expected: %.2f, min_pts: %d",
                       max_diff(sum_hist, noisy_sum), noise_bound, min_pts)
-        printer.plot_grid(grid_space, labels=GridLabels.label_all(grid_space), hist=sum_hist, title="neighbor_sum")
+        printer.plot_grid(grid_space, labels=GridLabels.label_all(sum_hist), hist=sum_hist, title="neighbor_sum")
 
 # k-means
 if RUN_DP_KMEANS:

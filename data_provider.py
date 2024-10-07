@@ -111,7 +111,22 @@ class LongitudeLatitudeDataProvider(DataProvider):
         return cls(long_lat, params, 40)
 
     @classmethod
-    def cabspot(cls):
+    def cabspot_raw(cls):
+        files = glob("datasets/cabspottingdata/new_*.txt")
+        end_points = list()
+        for file in files:
+            trajectory = np.genfromtxt(file, dtype=[float, float, int, int], names=None)
+            for point in trajectory:
+                end_points.append(np.array([point[1], point[0]]))
+
+        data = np.array(end_points)
+        long_lat = data[((data[:, 0] >= -122.7) & (data[:, 0] <= -122.1) &
+                         (data[:, 1] >= 37.4) & (data[:, 1] <= 37.9))]
+        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1}
+        return cls(long_lat, params, 37.8)
+
+    @classmethod
+    def cabspot_ends(cls):
         files = glob("datasets/cabspottingdata/new_*.txt")
         end_points = list()
         for file in files:

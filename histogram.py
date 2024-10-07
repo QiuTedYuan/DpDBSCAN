@@ -104,17 +104,9 @@ class GridLabels:
         self._inner = {}
 
     @classmethod
-    def label_positive(cls, hist: Histogram):
+    def label_all(cls, hist: Histogram):
         res = cls()
         for key, freq in hist.items():
-            if freq > 0.:
-                res._inner[key] = 0
-        return res
-
-    @classmethod
-    def label_all(cls, grid_space: GridSpace):
-        res = cls()
-        for key in range(grid_space.num_grids):
             res._inner[key] = 0
         return res
 

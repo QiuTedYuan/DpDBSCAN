@@ -8,4 +8,4 @@ python main.py -d cluto_t4 --info --linear >> output/cluto_t4.out 2>&1
 python main.py -d cluto_t5 --info --linear >> output/cluto_t5.out 2>&1
 python main.py -d cluto_t7 --info --linear >> output/cluto_t7.out 2>&1
 python main.py -d crash --info --linear >> output/crash.out 2>&1
-python main.py -d cabspot --info --linear >> output/cabspot.out 2>&1
+python main.py -d cabspot_ends --info --linear >> output/cabspot.out 2>&1
