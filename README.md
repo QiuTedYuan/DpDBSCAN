@@ -35,9 +35,9 @@ usage: main.py [-h]
                [-s SEED] [--noise {Laplace,Geometric,Gaussian}]
                [--epsilon EPSILON] [--delta DELTA] [--beta BETA]
                [--alpha ALPHA] [--minpts MINPTS] [--grid_scale GRID_SCALE]
-               [-p] [--dpi DPI] [--pdf] [--debug] [--info] [--linear]
-               [--skip_dbscan] [--skip_kmeans] [--skip_dp_dbscan]
-               [--skip_dp_kmeans]
+               [-p] [--dpi DPI] [--ext {png,pdf,svg}] [--debug] [--info]
+               [--linear] [--skip_dbscan] [--skip_kmeans] [--skip_dp_dbscan]
+               [--skip_dp_kmeans] [--run_trivial]
 
 DPDBSCAN Experiments.
 
@@ -57,7 +57,7 @@ options:
                         override grid_scale for DP-DBSCAN
   -p, --plot            plot results
   --dpi DPI             figure dpi
-  --pdf                 plot pdf figures (default png)
+  --ext {png,pdf,svg}   figure extension
   --debug               log level debug
   --info                log level info
   --linear              use linear time histogram
@@ -65,6 +65,7 @@ options:
   --skip_kmeans
   --skip_dp_dbscan
   --skip_dp_kmeans
+  --run_trivial
 ```
 
 ### Parameters
@@ -79,16 +80,17 @@ options:
 | --alpha, --minpts  | by dataset       | override DBSCAN parameters | float, int                                                                            |
 | --grid_scale       | 1, or by dataset | override grid_scale        | 0~1 (eta' in paper)                                                                   |
 | --dpi              | 100              | dpi of figures             | int                                                                                   |
+| --ext              | png              | figure format              | png, pdf, svg                                                                         |
 
 ### Flags
 
 | Flag                                                             | Default       | Usage                                                 |
 |------------------------------------------------------------------|---------------|-------------------------------------------------------|
 | -p, --plot                                                       | False         | plot figures                                          |
-| --pdf                                                            | False         | save figures in pdf (default png)                     |
 | --debug, --info                                                  | logging.ERROR | log level                                             |
 | --linear                                                         | False         | use linear-time histogram (otherwise naive histogram) |
 | --skip_dbscan, --skip_kmeans, --skip_dp_dbscan, --skip_dp_kmeans | False         | skip running the algorithm                            |
+| --run_trivial                                                    | False         | run the trivial algorithm                             |
 
 ##  Example
 ```zsh
