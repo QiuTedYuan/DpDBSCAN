@@ -212,3 +212,17 @@ class GaussianNoise(NoiseGenerator):
         res = super().max_sum_noise(beta, n, k)
         res = np.minimum(res, np.sqrt(2. * np.log(2. * n / beta)) * self.sigma * np.sqrt(k))
         return res
+
+
+def get_noise_gen(name: str, seed: int, sensitivity: float, epsilon: float, delta: float = 0.) -> NoiseGenerator:
+    match name:
+        case 'Laplace':
+            return LaplaceNoise(seed, sensitivity, epsilon)
+        case 'Geometric':
+            return GeometricNoise(seed, sensitivity, epsilon)
+        case 'Gaussian':
+            if delta <= 0:
+                raise Exception("delta is required for Gaussian mechanism.")
+            return GaussianNoise(seed, sensitivity, epsilon, delta)
+        case _:
+            raise Exception("Unsupported noise type" + name + ", try Laplace/Geometric/Gaussian")

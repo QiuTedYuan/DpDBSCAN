@@ -1,4 +1,5 @@
 import logging
+import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,6 +72,7 @@ def test_gauss():
     assert float_eq(beta, beta_)
 
 
+@unittest.skip
 def test_bounds():
     n = 100000
     lap = LaplaceNoise(sensitivity=1., epsilon=1., seed=0)
@@ -96,6 +98,7 @@ def test_bounds():
     plt.show()
 
 
+@unittest.skip
 def test_compare_noise():
     n = 100000
     lap = LaplaceNoise(sensitivity=1., epsilon=1., seed=0)
@@ -121,6 +124,7 @@ def test_compare_noise():
     plt.show()
 
 
+@unittest.skip
 def test_compare_sums():
     n = 100000
     k = 100

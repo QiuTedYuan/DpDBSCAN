@@ -59,7 +59,7 @@ class SimpleDataProvider(DataProvider):
     def circles(cls, n_samples, seed):
         x, labels = datasets.make_circles(n_samples=n_samples, factor=0.5, noise=0.05, random_state=seed)
         pts = Points(StandardScaler().fit_transform(x))
-        params = {"alpha": 0.2, "min_samples": 9, "grid_scale": 0.8}
+        params = {"alpha": 0.2, "min_samples": 10, "grid_scale": 1}
         return cls(pts, labels, params)
 
     @classmethod
@@ -111,7 +111,7 @@ class LongitudeLatitudeDataProvider(DataProvider):
         return cls(long_lat, params, 40)
 
     @classmethod
-    def cabspot_raw(cls):
+    def cabs(cls):
         files = glob("datasets/cabspottingdata/new_*.txt")
         end_points = list()
         for file in files:
@@ -120,13 +120,13 @@ class LongitudeLatitudeDataProvider(DataProvider):
                 end_points.append(np.array([point[1], point[0]]))
 
         data = np.array(end_points)
-        long_lat = data[((data[:, 0] >= -122.7) & (data[:, 0] <= -122.1) &
-                         (data[:, 1] >= 37.4) & (data[:, 1] <= 37.9))]
-        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1}
+        long_lat = data[((data[:, 0] <= -122.3) & (data[:, 0] >= -122.6) &
+                         (data[:, 1] >= 37.55) & (data[:, 1] <= 37.85))]
+        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1, "linear": True}
         return cls(long_lat, params, 37.8)
 
     @classmethod
-    def cabspot_ends(cls):
+    def cabs_tiny(cls):
         files = glob("datasets/cabspottingdata/new_*.txt")
         end_points = list()
         for file in files:
@@ -142,7 +142,7 @@ class LongitudeLatitudeDataProvider(DataProvider):
 
         data = np.array(end_points)
         long_lat = data[((data[:, 0] <= -122.38) & (data[:, 0] >= -122.48) &
-                         (data[:, 1] <= 37.82) & (data[:, 1] >= 37.72))]
+                         (data[:, 1] >= 37.72) & (data[:, 1] <= 37.82))]
         params = {"alpha": 0.05 / cls.km_per_latitude(), "min_samples": 1000, "grid_scale": 1}
         return cls(long_lat, params, 37.8)
 
@@ -179,3 +179,45 @@ class ArffDataProvider(DataProvider):
     def cluto_t7(cls):
         params = {"alpha": 12, "min_samples": 20, "grid_scale": 1}
         return cls('cluto-t7-10k.arff', params)
+
+
+class PrinterParams:
+    def __init__(self, dpi: int, ext: str, fig_size: (int, int) = (10, 10),
+                 draw_label: bool = True, draw_edge: bool = True, font_size: int = 12, marker_size: int = 4):
+        self.fig_size = fig_size
+        self.draw_label = draw_label
+        self.draw_edge = draw_edge
+        self.dpi = dpi
+        self.ext = ext
+        self.marker_size = marker_size
+        self.font_size = font_size
+
+
+# data_provider, draw_label, draw_edge, fig_size
+def get_data(name: str, dpi, ext) -> (DataProvider, PrinterParams):
+    default_params = PrinterParams(dpi, ext)
+    cluto_params = PrinterParams(dpi, ext, fig_size=(10, 6))
+    real_params = PrinterParams(dpi, ext, draw_label=False, draw_edge=False)
+    match name:
+        case 'toy':
+            return SimpleDataProvider.toy(), default_params
+        case 'moons':
+            return SimpleDataProvider.moons(2000, 30), default_params
+        case 'blobs':
+            return SimpleDataProvider.blobs(2000, 30), default_params
+        case 'circles':
+            return SimpleDataProvider.circles(2000, 30), default_params
+        case 'cluto_t4':
+            return ArffDataProvider.cluto_t4(), cluto_params
+        case 'cluto_t5':
+            return ArffDataProvider.cluto_t5(), cluto_params
+        case 'cluto_t7':
+            return ArffDataProvider.cluto_t7(), cluto_params
+        case 'crash':
+            return LongitudeLatitudeDataProvider.crash(), real_params
+        case 'cabs_tiny':
+            return LongitudeLatitudeDataProvider.cabs_tiny(), real_params
+        case 'cabs':
+            return LongitudeLatitudeDataProvider.cabs(), real_params
+        case _:
+            raise Exception("Unsupported dataset")

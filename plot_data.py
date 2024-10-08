@@ -6,25 +6,21 @@ from shapely.geometry import box
 from shapely.ops import voronoi_diagram
 from shapely.plotting import plot_polygon
 
-from data_provider import DataProvider
+from data_provider import DataProvider, PrinterParams
 from datatype_grid import GridSpace
 from datatype_point import Points, PointLabels, Point
 from histogram import Histogram, GridLabels
 
 
 class Printer:
-    def __init__(self, data_provider: DataProvider, output_folder: str,
-                 enabled, figsize, draw_label, draw_edge, dpi):
+    def __init__(self, data_provider: DataProvider, output_folder: str, enabled: bool, params: PrinterParams):
         self.output_folder = output_folder
         self.pts = data_provider.get_data()
         self.scales = data_provider.get_scales()
         self.dim = self.pts.get_dim()
         self.skip = (self.dim > 3) or not enabled
-        self.skip_label = not draw_label
-        self.figsize = figsize
-        self.dpi = dpi
-        self.draw_edge = draw_edge
-        matplotlib.rcParams.update({'font.size': 12})
+        self.params = params
+        matplotlib.rcParams.update({'font.size': params.font_size})
         if not self.skip:
             scaled_low, scaled_high = self.pts.get_ranges()
             low = self.get_original_pt(scaled_low)
@@ -42,11 +38,18 @@ class Printer:
             return
         plt.setp(ax, xlim=self.xlim, ylim=self.ylim)
         plt.tight_layout()
-        plt.savefig(self.output_folder + file + ".png", dpi=self.dpi)
+        plt.savefig(self.output_folder + file + "." + self.params.ext, dpi=self.params.dpi)
 
     @staticmethod
     def reverse_color(c: np.array):
         return np.array([1. - c[0], 1. - c[1], 1. - c[2], c[3]])
+
+    def edge_color(self, color):
+        return "black" if self.params.draw_edge else color
+
+    @staticmethod
+    def get_marker(label):
+        return "x" if label == -1 else "o"
 
     @staticmethod
     def get_color_map(unique_labels: set[int]):
@@ -63,8 +66,8 @@ class Printer:
             color = color_map[label]
             pt = self.get_original_pt(scaled_pt)
             ax.scatter(pt[0], pt[1], zs=pt[2],
-                       marker="x" if label == -1 else "o",
-                       edgecolor="black" if self.draw_edge else color,
+                       marker=self.get_marker(label),
+                       edgecolor=self.edge_color(color),
                        facecolor=color, )
         self.save_fig(ax, title)
 
@@ -72,28 +75,27 @@ class Printer:
     # labels = clusters where -1 means no cluster
     # radius = alpha in DBSCAN, for drawing the span
     def plot_labels(self, labels: PointLabels, radius, title: str):
-        if self.skip or self.skip_label:
+        if self.skip or not self.params.draw_label:
             return
         if self.dim == 3:
             return self.plot_3d_labels(labels, title)
 
-        _, ax = plt.subplots(figsize=self.figsize)
+        _, ax = plt.subplots(figsize=self.params.fig_size)
         color_map = Printer.get_color_map(set(labels))
         for scaled_pt, label in zip(self.pts.get(), labels):
             color = color_map[label]
             pt = self.get_original_pt(scaled_pt)
             ax.plot(pt[0], pt[1],
-                    "x" if label == -1 else "o",
+                    self.get_marker(label),
                     markerfacecolor=color,
-                    markeredgecolor="black" if self.draw_edge else color,
-                    markersize=4, )
+                    markeredgecolor=self.edge_color(color),
+                    markersize=self.params.marker_size, )
 
             # plot spans for core points
             if radius > 0 and -1 != label:
                 cir = plt.Circle(pt, radius, color=color, fill=True, alpha=0.3)
                 ax.add_patch(cir)
-        # if title is not None:
-        #     ax.set_title(title)
+
         self.save_fig(ax, title)
 
     def plot_3d_grid(self, grid_space: GridSpace, labels: GridLabels, hist: Histogram, title):
@@ -108,11 +110,9 @@ class Printer:
             x, y, z = self.get_original_pt(grid_space.get_low_point_of_grid(grid_space.decode_from_key(key)))
             color = color_map[label]
             ax.scatter(x, y, zs=z,
-                       edgecolor="black" if self.draw_edge else color,
+                       edgecolor=self.edge_color(color),
                        facecolor=color,
                        alpha=abs(freq) / max_freq)
-        # if title is not None:
-        #     ax.set_title(title)
         self.save_fig(ax, title)
 
     def plot_grid(self, grid_space: GridSpace, labels: GridLabels, hist: Histogram, title: str):
@@ -121,7 +121,7 @@ class Printer:
         if self.dim == 3:
             return self.plot_3d_grid(grid_space, labels, hist, title)
 
-        _, ax = plt.subplots(figsize=self.figsize)
+        _, ax = plt.subplots(figsize=self.params.fig_size)
         color_map = Printer.get_color_map(set(labels.values()))
         max_freq = hist.max_freq()
         for key, label in labels.items():
@@ -139,7 +139,7 @@ class Printer:
             y_width = min(grid_space.width / self.scales[1], y_high - y)
 
             rectangle = plt.Rectangle((x, y), x_width, y_width,
-                                      edgecolor="black" if self.draw_edge else color,
+                                      edgecolor=self.edge_color(color),
                                       facecolor=color,
                                       fill=True,
                                       alpha=abs(freq) / max_freq)
@@ -152,7 +152,7 @@ class Printer:
 
         centers = [self.get_original_pt(center) for center in scaled_centers]
 
-        _, ax = plt.subplots(figsize=self.figsize)
+        _, ax = plt.subplots(figsize=self.params.fig_size)
         plt.setp(ax, xlim=self.xlim, ylim=self.ylim)
         color_map = Printer.get_color_map(set(range(len(centers))))
         regions = voronoi_diagram(geom=MultiPoint(centers), envelope=box(self.xlim[0], self.ylim[0], self.xlim[1], self.ylim[1]))
@@ -171,6 +171,6 @@ class Printer:
             ax.plot(center[0], center[1],
                     "o",
                     markerfacecolor=color,
-                    markeredgecolor="black" if self.draw_edge else color,
-                    markersize=4, )
+                    markeredgecolor=self.edge_color(color),
+                    markersize=self.params.marker_size, )
         self.save_fig(ax, title)

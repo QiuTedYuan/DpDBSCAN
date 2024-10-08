@@ -5,7 +5,7 @@ This repo contains code for DBSCAN under Pure Differential Privacy. The experime
 ## Installation
 
 ```zsh
-git clone --depth 1 --recurse-submodules <url>
+git clone --depth 1 --recurse-submodules <url> dbscan
 cd dbscan
 pip install -r requirements.txt
 ```
@@ -31,18 +31,19 @@ cd ..
 ```
 $ python main.py -h
 usage: main.py [-h]
-               [-d {moons,blobs,circles,cluto_t4,cluto_t5,cluto_t7,cabspot_ends,cabspot_raw,crash}]
+               [-d {moons,blobs,circles,cluto_t4,cluto_t5,cluto_t7,cabs,cabs_tiny,crash}]
                [-s SEED] [--noise {Laplace,Geometric,Gaussian}]
                [--epsilon EPSILON] [--delta DELTA] [--beta BETA]
                [--alpha ALPHA] [--minpts MINPTS] [--grid_scale GRID_SCALE]
-               [-p] [--debug] [--info] [--linear] [--skip_dbscan]
-               [--skip_kmeans] [--skip_dp_dbscan] [--skip_dp_kmeans]
+               [-p] [--dpi DPI] [--pdf] [--debug] [--info] [--linear]
+               [--skip_dbscan] [--skip_kmeans] [--skip_dp_dbscan]
+               [--skip_dp_kmeans]
 
 DPDBSCAN Experiments.
 
 options:
   -h, --help            show this help message and exit
-  -d {moons,blobs,circles,cluto_t4,cluto_t5,cluto_t7,cabspot_ends,cabspot_raw,crash}, --dataset {moons,blobs,circles,cluto_t4,cluto_t5,cluto_t7,cabspot_ends,cabspot_raw,crash}
+  -d {moons,blobs,circles,cluto_t4,cluto_t5,cluto_t7,cabs,cabs_tiny,crash}, --dataset {moons,blobs,circles,cluto_t4,cluto_t5,cluto_t7,cabs,cabs_tiny,crash}
                         Dataset, default moons
   -s SEED, --seed SEED  Random Seed, default 0
   --noise {Laplace,Geometric,Gaussian}
@@ -55,6 +56,8 @@ options:
   --grid_scale GRID_SCALE
                         override grid_scale for DP-DBSCAN
   -p, --plot            plot results
+  --dpi DPI             figure dpi
+  --pdf                 plot pdf figures (default png)
   --debug               log level debug
   --info                log level info
   --linear              use linear time histogram
@@ -75,12 +78,14 @@ options:
 | --beta             | 0.5              | fail prob. for bound       | 0~1                                                                                   |
 | --alpha, --minpts  | by dataset       | override DBSCAN parameters | float, int                                                                            |
 | --grid_scale       | 1, or by dataset | override grid_scale        | 0~1 (eta' in paper)                                                                   |
+| --dpi              | 100              | dpi of figures             | int                                                                                   |
 
 ### Flags
 
 | Flag                                                             | Default       | Usage                                                 |
 |------------------------------------------------------------------|---------------|-------------------------------------------------------|
 | -p, --plot                                                       | False         | plot figures                                          |
+| --pdf                                                            | False         | save figures in pdf (default png)                     |
 | --debug, --info                                                  | logging.ERROR | log level                                             |
 | --linear                                                         | False         | use linear-time histogram (otherwise naive histogram) |
 | --skip_dbscan, --skip_kmeans, --skip_dp_dbscan, --skip_dp_kmeans | False         | skip running the algorithm                            |

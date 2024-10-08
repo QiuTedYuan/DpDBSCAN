@@ -7,8 +7,9 @@ from datetime import datetime
 import diffprivlib
 from sklearn import metrics
 from sklearn.cluster import DBSCAN, KMeans
+from sklearn.metrics import pairwise_distances
 
-from data_provider import *
+from data_provider import get_data
 from datatype_grid import GridSpace
 from datatype_point import Points
 from histogram import Histogram, SumHistogram, NoisyHistogram, max_diff, GridLabels, MockHistogram
@@ -18,7 +19,8 @@ from plot_data import Printer
 # program args
 parser = argparse.ArgumentParser(description='DPDBSCAN Experiments.')
 parser.add_argument('-d', '--dataset', help="Dataset, default moons", required=False,
-                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabspot_ends', 'cabspot_raw', 'crash'],
+                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabs', 'cabs_tiny',
+                             'crash'],
                     default='moons')
 parser.add_argument('-s', '--seed', help="Random Seed, default 0",
                     required=False, default=0, type=int)
@@ -39,82 +41,27 @@ parser.add_argument('--grid_scale', help="override grid_scale for DP-DBSCAN",
 
 parser.add_argument('-p', '--plot', help="plot results",
                     action='store_true')
+parser.add_argument('--dpi', help="figure dpi",
+                    required=False, default=100, type=float)
+parser.add_argument('--ext', help="figure extension",
+                    required=False, choices=["png", "pdf", "svg"], default="png")
 parser.add_argument('--debug', help="log level debug",
                     action='store_true')
 parser.add_argument('--info', help="log level info",
                     action='store_true')
 parser.add_argument('--linear', help="use linear time histogram",
                     action='store_true')
+
 parser.add_argument('--skip_dbscan', action='store_true')
 parser.add_argument('--skip_kmeans', action='store_true')
 parser.add_argument('--skip_dp_dbscan', action='store_true')
 parser.add_argument('--skip_dp_kmeans', action='store_true')
+parser.add_argument('--run_trivial', action='store_true')
 
 args = parser.parse_args()
 
-match args.dataset:
-    case 'toy':
-        data_provider = SimpleDataProvider.toy()
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 10)
-        dpi = 100
-    case 'moons':
-        data_provider = SimpleDataProvider.moons(2000, 30)
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 10)
-        dpi = 100
-    case 'blobs':
-        data_provider = SimpleDataProvider.blobs(2000, 30)
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 10)
-        dpi = 100
-    case 'circles':
-        data_provider = SimpleDataProvider.circles(2000, 30)
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 10)
-        dpi = 100
-    case 'cluto_t4':
-        data_provider = ArffDataProvider.cluto_t4()
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 6)
-        dpi = 100
-    case 'cluto_t5':
-        data_provider = ArffDataProvider.cluto_t5()
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 6)
-        dpi = 100
-    case 'cluto_t7':
-        data_provider = ArffDataProvider.cluto_t7()
-        draw_label = True
-        draw_edge = True
-        fig_size = (10, 6)
-        dpi = 100
-    case 'crash':
-        data_provider = LongitudeLatitudeDataProvider.crash()
-        fig_size = (10, 10)
-        draw_label = False
-        draw_edge = False
-        dpi = 100
-    case 'cabspot_ends':
-        data_provider = LongitudeLatitudeDataProvider.cabspot_ends()
-        fig_size = (10, 10)
-        draw_label = False
-        draw_edge = False
-        dpi = 100
-    case 'cabspot_raw':
-        data_provider = LongitudeLatitudeDataProvider.cabspot_raw()
-        fig_size = (10, 10)
-        draw_label = False
-        draw_edge = False
-        dpi = 100
-    case _:
-        raise Exception("Unsupported dataset")
+# prepare data
+data_provider, printer_params = get_data(args.dataset, args.dpi, args.ext)
 
 pts = data_provider.get_data()
 dim = pts.get_dim()
@@ -123,6 +70,7 @@ params = data_provider.get_params()
 alpha = params["alpha"] if args.alpha is None else args.alpha
 min_pts = params["min_samples"] if args.minpts is None else args.minpts
 grid_scale = params["grid_scale"] if args.grid_scale is None else args.grid_scale
+linear = ("linear" in params) if args.linear is None else args.linear
 
 if args.debug:
     log_level = logging.DEBUG
@@ -130,34 +78,18 @@ elif args.info:
     log_level = logging.INFO
 else:
     log_level = logging.ERROR
-
-RUN_DBSCAN = not args.skip_dbscan
-RUN_DP_DBSCAN = not args.skip_dp_dbscan
-RUN_KMEANS = not args.skip_kmeans
-RUN_DP_KMEANS = not args.skip_dp_kmeans
-
 logging.basicConfig(level=log_level)
 logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.5g, min_pts=%d',
              pts.get_size(), dim, low, high, alpha, min_pts)
 
 seed, epsilon, delta, beta = args.seed, args.epsilon, args.delta, args.beta
-match args.noise:
-    case 'Laplace':
-        noise_gen: NoiseGenerator = LaplaceNoise(seed, 1, epsilon)
-    case 'Geometric':
-        noise_gen: NoiseGenerator = GeometricNoise(seed, 1, epsilon)
-    case 'Gaussian':
-        if delta <= 0:
-            raise Exception("delta is required for Gaussian mechanism.")
-        noise_gen: NoiseGenerator = GaussianNoise(seed, 1, epsilon, args.delta)
-    case _:
-        raise Exception("Unsupported noise type" + args.mechanism + ", try Laplace/Geometric/Gaussian")
+noise_gen = get_noise_gen(args.noise, args.seed, 1,  args.epsilon, args.delta)
 
 output_folder = "./output/" + datetime.now().strftime("%m-%d-%Y_%H-%M-%S-%f") + "/"
 if args.plot:
     os.makedirs(output_folder, exist_ok=True)
     logging.info("Created directory: " + output_folder)
-printer = Printer(data_provider, output_folder, args.plot, fig_size, draw_label, draw_edge, dpi)
+printer = Printer(data_provider, output_folder, args.plot, printer_params)
 
 if data_provider.has_true_labels():
     true_labels = data_provider.get_true_labels()
@@ -169,13 +101,20 @@ else:
     true_labels = np.arange(0, pts.get_size())
     n_clusters = 3
 
+RUN_DBSCAN = not args.skip_dbscan
+RUN_DP_DBSCAN = not args.skip_dp_dbscan
+RUN_KMEANS = not args.skip_kmeans
+RUN_DP_KMEANS = not args.skip_dp_kmeans
+RUN_TRIVIAL = args.run_trivial
+
 if RUN_DBSCAN:
 
     timer = time.time()
     dbs = DBSCAN(eps=alpha, min_samples=min_pts)
     dbs.fit(pts.get())
     dbscan_labels = Points.compute_dbscan_labels(dbs)
-    logging.info("[DBSCAN] time: %.5g seconds", time.time() - timer)
+    logging.info("[DBSCAN][Time] %.5g seconds", time.time() - timer)
+
     dbscan_label_set = set(dbscan_labels)
     dbscan_label_set.discard(-1)
     logging.info("[DBSCAN] num clusters: %d", len(dbscan_label_set))
@@ -189,8 +128,10 @@ if RUN_KMEANS:
     timer = time.time()
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(pts.get())
-    logging.info("[KMeans] time: %.5g seconds", time.time() - timer)
+    logging.info("[KMeans][Time] %.5g seconds", time.time() - timer)
 
+    printer.plot_centers(scaled_centers=kmeans.cluster_centers_,
+                         title="kmeans_" + str(n_clusters) + "_centers")
     printer.plot_labels(labels=kmeans.labels_, radius=0., title="kmeans_" + str(n_clusters))
     if data_provider.has_true_labels():
         print('[KMeans] ARI = ', metrics.adjusted_rand_score(true_labels, kmeans.labels_))
@@ -204,14 +145,13 @@ if RUN_DP_DBSCAN:
     step_timer = time.time()
     grid_space = GridSpace(dim, low, high, alpha, grid_scale)
     num_grids = grid_space.num_grids
-    logging.info("[DP-DBSCAN] grid width: %.5g, num_grids: %d", grid_space.width, num_grids)
+    logging.info("[DP-DBSCAN] cell width: %.5g, num cells: %d", grid_space.width, num_grids)
+
     grid_counts = Histogram.build_from_pts(pts, grid_space)
-    logging.info("[DP-DBSCAN] histogram collect time: %.5g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN][Time] collect histogram: %.5g seconds", time.time() - step_timer)
 
     # add noise
     step_timer = time.time()
-
-    # directly adding noise to sum_hist, which has sensitivity neighbor
     if args.linear:
         gamma = noise_gen.max_noise(beta, grid_space.num_grids)
         noisy_counts = NoisyHistogram.linear_time_build(grid_counts, noise_gen, grid_space.num_grids, gamma)
@@ -219,21 +159,24 @@ if RUN_DP_DBSCAN:
     else:
         noisy_counts = NoisyHistogram.naive_build(grid_counts, noise_gen, grid_space.num_grids)
         noise_bound = noise_gen.max_sum_noise(beta, grid_space.num_grids, len(grid_space.neighbor_offsets))
+    logging.info("[DP-DBSCAN][Time] noisy histogram: %.5g seconds", time.time() - step_timer)
 
+    # add noise
+    step_timer = time.time()
     noisy_sum = SumHistogram.build_from_counts(noisy_counts, grid_space)
-
-    logging.info("[DP-DBSCAN] add noise time: %.5g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN][Time] neighbor sum: %.5g seconds", time.time() - step_timer)
 
     # find superset of core grids and give unique labels
     step_timer = time.time()
     grid_labels = GridLabels.label_high_freq(noisy_sum, min_pts + noise_bound)
-    logging.info("[DP-DBSCAN] find core grids time: %.5g seconds", time.time() - step_timer)
+    logging.info("[DP-DBSCAN][Time] core cells: %.5g seconds", time.time() - step_timer)
 
     # merge neighboring core-grids by union-find
     step_timer = time.time()
     num_clusters = grid_labels.merge_neighbors(grid_space)
-    logging.info("[DP-DBSCAN] merge grids time: %.5g seconds", time.time() - step_timer)
-    logging.info("[DP-DBSCAN] time: %.5g seconds", time.time() - timer)
+    logging.info("[DP-DBSCAN][Time] merge cells: %.5g seconds", time.time() - step_timer)
+
+    logging.info("[DP-DBSCAN][Time] %.5g seconds", time.time() - timer)
     logging.info("[DP-DBSCAN] num clusters: %d", num_clusters)
 
     printer.plot_grid(grid_space, labels=GridLabels.label_all(noisy_counts), hist=noisy_counts, title="noisy_counts")
@@ -254,9 +197,6 @@ if RUN_DP_DBSCAN:
 
     if log_level == logging.DEBUG:
         sum_hist = SumHistogram.build_from_counts(grid_counts, grid_space)
-        logging.debug("[DP-DBSCAN] naive max noise: %.2f, linear time max noise: %.2f",
-                      noise_gen.max_sum_noise(beta, grid_space.num_grids, len(grid_space.neighbor_offsets)),
-                      noise_gen.max_noise(beta, grid_space.num_grids) * len(grid_space.neighbor_offsets))
         logging.debug("[DP-DBSCAN] max noise seen: %.2f, max noise expected: %.2f, min_pts: %d",
                       max_diff(sum_hist, noisy_sum), noise_bound, min_pts)
         printer.plot_grid(grid_space, labels=GridLabels.label_all(sum_hist), hist=sum_hist, title="neighbor_sum")
@@ -269,7 +209,7 @@ if RUN_DP_KMEANS:
     kmeans = diffprivlib.models.k_means.KMeans(n_clusters, epsilon=epsilon, bounds=(low, high), random_state=seed)
     kmeans.fit(pts.get())
 
-    logging.info("[DPKmeans] time: %.5g seconds", time.time() - timer)
+    logging.info("[DPKmeans][Time] %.5g seconds", time.time() - timer)
 
     printer.plot_centers(scaled_centers=kmeans.cluster_centers_,
                          title="dp_kmeans_" + str(epsilon) + "_" + str(n_clusters) + "_centers")
@@ -279,3 +219,30 @@ if RUN_DP_KMEANS:
     if data_provider.has_true_labels():
         print('[DPKmeans] ARI = ', metrics.adjusted_rand_score(true_labels, kmeans.labels_))
         print('[DPKmeans] AMI = ', metrics.adjusted_mutual_info_score(true_labels, kmeans.labels_))
+
+# trivial
+if RUN_TRIVIAL:
+    timer = time.time()
+
+    pw_dist = pairwise_distances(pts.get())
+    sensitivity = Points.dist(low, high)
+    # changing a point affects n distances
+    trivial_noise_gen = get_noise_gen(args.noise, args.seed, pts.get_size(), args.epsilon, args.delta)
+    for i in range(0, pts.get_size()):
+        for j in range(i+1, pts.get_size()):
+            noise = trivial_noise_gen.generate(1)
+            pw_dist[i, j] += noise[0]
+            pw_dist[j, i] += noise[0]
+
+    dbs_trivial = DBSCAN(eps=alpha, min_samples=min_pts)
+    dbs_trivial.fit(pw_dist)
+    trivial_labels = Points.compute_dbscan_labels(dbs_trivial)
+    logging.info("[Trivial][Time] %.5g seconds", time.time() - timer)
+
+    trivial_label_set = set(trivial_labels)
+    trivial_label_set.discard(-1)
+    logging.info("[Trivial] num clusters: %d", len(trivial_label_set))
+    printer.plot_labels(labels=trivial_labels, radius=alpha, title="trivial_" + str(alpha) + "_" + str(min_pts))
+    if data_provider.has_true_labels():
+        print('[Trivial] ARI = ', metrics.adjusted_rand_score(true_labels, trivial_labels))
+        print('[Trivial] AMI = ', metrics.adjusted_mutual_info_score(true_labels, trivial_labels))

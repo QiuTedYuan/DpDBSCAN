@@ -37,4 +37,4 @@ def test_low_point():
 def test_dimension():
     gs = GridSpace(4, np.array([0., 0., -1., -5.]), np.array([3.9, 4.9, 5.9, -4.1]), 1, 1)
     assert gs.width == 0.5
-    assert gs.grids_per_dim.tolist() == [8, 10, 14, 2]
+    assert gs.grids_per_dim == (8, 10, 14, 2)
