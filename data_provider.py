@@ -122,7 +122,7 @@ class LongitudeLatitudeDataProvider(DataProvider):
         data = np.array(end_points)
         long_lat = data[((data[:, 0] <= -122.3) & (data[:, 0] >= -122.6) &
                          (data[:, 1] >= 37.55) & (data[:, 1] <= 37.85))]
-        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1, "linear": True}
+        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1,}
         return cls(long_lat, params, 37.8)
 
     @classmethod

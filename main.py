@@ -49,7 +49,7 @@ parser.add_argument('--debug', help="log level debug",
                     action='store_true')
 parser.add_argument('--info', help="log level info",
                     action='store_true')
-parser.add_argument('--linear', help="use linear time histogram",
+parser.add_argument('--linear', help="force using linear time histogram",
                     action='store_true')
 
 parser.add_argument('--skip_dbscan', action='store_true')
@@ -64,13 +64,12 @@ args = parser.parse_args()
 data_provider, printer_params = get_data(args.dataset, args.dpi, args.ext)
 
 pts = data_provider.get_data()
-dim = pts.get_dim()
+n, dim = pts.get_size(), pts.get_dim()
 low, high = pts.get_ranges()
 params = data_provider.get_params()
 alpha = params["alpha"] if args.alpha is None else args.alpha
 min_pts = params["min_samples"] if args.minpts is None else args.minpts
 grid_scale = params["grid_scale"] if args.grid_scale is None else args.grid_scale
-linear = ("linear" in params) if args.linear is None else args.linear
 
 if args.debug:
     log_level = logging.DEBUG
@@ -80,7 +79,7 @@ else:
     log_level = logging.ERROR
 logging.basicConfig(level=log_level)
 logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.5g, min_pts=%d',
-             pts.get_size(), dim, low, high, alpha, min_pts)
+             n, dim, low, high, alpha, min_pts)
 
 seed, epsilon, delta, beta = args.seed, args.epsilon, args.delta, args.beta
 noise_gen = get_noise_gen(args.noise, args.seed, 1,  args.epsilon, args.delta)
@@ -98,7 +97,7 @@ if data_provider.has_true_labels():
     n_clusters = len(true_label_set)
     printer.plot_labels(labels=true_labels, radius=0., title="true_cluster")
 else:
-    true_labels = np.arange(0, pts.get_size())
+    true_labels = np.arange(0, n)
     n_clusters = 3
 
 RUN_DBSCAN = not args.skip_dbscan
@@ -152,14 +151,17 @@ if RUN_DP_DBSCAN:
 
     # add noise
     step_timer = time.time()
-    if args.linear:
-        gamma = noise_gen.max_noise(beta, grid_space.num_grids)
-        noisy_counts = NoisyHistogram.linear_time_build(grid_counts, noise_gen, grid_space.num_grids, gamma)
-        noise_bound = gamma * len(grid_space.neighbor_offsets)
+    spase_n = grid_counts.size()
+    if spase_n < num_grids / 2. or args.linear:
+        T = noise_gen.get_threshold(spase_n / 2. / num_grids)
+        noisy_counts = NoisyHistogram.linear_time_build(grid_counts, noise_gen, num_grids, T)
+        noise_bound = (T * len(grid_space.neighbor_offsets) +
+                       noise_gen.max_sum_noise(beta, num_grids, len(grid_space.neighbor_offsets)))
+        logging.info("[DP-DBSCAN][Time] noisy histogram O(n): %.5g seconds", time.time() - step_timer)
     else:
-        noisy_counts = NoisyHistogram.naive_build(grid_counts, noise_gen, grid_space.num_grids)
-        noise_bound = noise_gen.max_sum_noise(beta, grid_space.num_grids, len(grid_space.neighbor_offsets))
-    logging.info("[DP-DBSCAN][Time] noisy histogram: %.5g seconds", time.time() - step_timer)
+        noisy_counts = NoisyHistogram.naive_build(grid_counts, noise_gen, num_grids)
+        noise_bound = noise_gen.max_sum_noise(beta, num_grids, len(grid_space.neighbor_offsets))
+        logging.info("[DP-DBSCAN][Time] noisy histogram O(|X|): %.5g seconds", time.time() - step_timer)
 
     # add noise
     step_timer = time.time()
@@ -227,14 +229,17 @@ if RUN_TRIVIAL:
     pw_dist = pairwise_distances(pts.get())
     sensitivity = Points.dist(low, high)
     # changing a point affects n distances
-    trivial_noise_gen = get_noise_gen(args.noise, args.seed, pts.get_size(), args.epsilon, args.delta)
-    for i in range(0, pts.get_size()):
-        for j in range(i+1, pts.get_size()):
-            noise = trivial_noise_gen.generate(1)
-            pw_dist[i, j] += noise[0]
-            pw_dist[j, i] += noise[0]
+    noise_gen = get_noise_gen(args.noise, args.seed, n, args.epsilon, args.delta)
+    noises = noise_gen.generate((n + 1) * n // 2)
+    idx = 0
+    for i in range(0, n):
+        for j in range(i+1, n):
+            noisy_dist = min(max(pw_dist[i, j] + noises[idx], 0), sensitivity)
+            idx += 1
+            pw_dist[i, j] = noisy_dist
+            pw_dist[j, i] = noisy_dist
 
-    dbs_trivial = DBSCAN(eps=alpha, min_samples=min_pts)
+    dbs_trivial = DBSCAN(eps=alpha, min_samples=min_pts, metric='precomputed')
     dbs_trivial.fit(pw_dist)
     trivial_labels = Points.compute_dbscan_labels(dbs_trivial)
     logging.info("[Trivial][Time] %.5g seconds", time.time() - timer)

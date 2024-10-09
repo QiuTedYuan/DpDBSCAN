@@ -62,6 +62,9 @@ class NoiseGenerator(ABC):
     def generate(self, size: int) -> Noises:
         pass
 
+    def get_threshold(self, p: float) -> float:
+        return self.tail_bound_inverse(2 * p)
+
     def generate_large(self, threshold: float) -> float:
         # get p=Pr[Noise > threshold]=0.5*tail_bound
         p = 0.5 * self.tail_bound(threshold)

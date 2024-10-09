@@ -74,8 +74,11 @@ class NoisyHistogram(Histogram):
     @classmethod
     def linear_time_build(cls, histogram: Histogram, noise_gen: NoiseGenerator, universe: int, gamma):
         res = cls()
+        noises = noise_gen.generate(histogram.size())
+        idx = 0
         for key, freq in histogram.items():
-            noisy_freq = freq + noise_gen.generate(1)[0]
+            noisy_freq = freq + noises[idx]
+            idx += 1
             if noisy_freq >= gamma:
                 res.increment(key, noisy_freq)
         empty_count = universe - histogram.size()
