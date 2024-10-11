@@ -6,10 +6,31 @@ from shapely.geometry import box
 from shapely.ops import voronoi_diagram
 from shapely.plotting import plot_polygon
 
-from data_provider import DataProvider, PrinterParams
+from data_provider import DataProvider, ArffDataProvider, LongitudeLatitudeDataProvider
 from datatype_grid import GridSpace
 from datatype_point import Points, PointLabels, Point
 from histogram import Histogram, GridLabels
+
+
+class PrinterParams:
+    def __init__(self, dpi: int, ext: str, fig_size: (int, int) = (10, 10),
+                 draw_label: bool = True, draw_edge: bool = True, font_size: int = 12, marker_size: int = 4):
+        self.fig_size = fig_size
+        self.draw_label = draw_label
+        self.draw_edge = draw_edge
+        self.dpi = dpi
+        self.ext = ext
+        self.marker_size = marker_size
+        self.font_size = font_size
+
+    @classmethod
+    def from_data(cls, data_provider: DataProvider, dpi, ext):
+        if isinstance(data_provider, ArffDataProvider):
+            return cls(dpi, ext, fig_size=(10, 6))
+        elif isinstance(data_provider, LongitudeLatitudeDataProvider):
+            return cls(dpi, ext, draw_label=False, draw_edge=False)
+        else:
+            return cls(dpi, ext)
 
 
 class Printer:
@@ -60,14 +81,15 @@ class Printer:
         return color_map
 
     def plot_3d_labels(self, labels: PointLabels, title):
-        ax = plt.subplot(projection='3d')
+        _ = plt.figure(figsize=self.params.fig_size)
+        ax = plt.axes(projection='3d')
+        ax.grid()
         color_map = Printer.get_color_map(set(labels))
         for scaled_pt, label in zip(self.pts.get(), labels):
             color = color_map[label]
             pt = self.get_original_pt(scaled_pt)
             ax.scatter(pt[0], pt[1], zs=pt[2],
                        marker=self.get_marker(label),
-                       edgecolor=self.edge_color(color),
                        facecolor=color, )
         self.save_fig(ax, title)
 
@@ -98,49 +120,66 @@ class Printer:
 
         self.save_fig(ax, title)
 
-    def plot_3d_grid(self, grid_space: GridSpace, labels: GridLabels, hist: Histogram, title):
-        ax = plt.subplot(projection='3d')
+    def plot_3d_grid(self, grid_space: GridSpace, labels: GridLabels, title):
+        _ = plt.figure(figsize=self.params.fig_size)
+        ax = plt.axes(projection='3d')
+        ax.grid()
         color_map = Printer.get_color_map(set(labels.values()))
-        max_freq = hist.max_freq()
 
         for key, label in labels.items():
             if label == -1:
                 continue
-            freq = hist.get_by_key(key)
             x, y, z = self.get_original_pt(grid_space.get_low_point_of_grid(grid_space.decode_from_key(key)))
             color = color_map[label]
             ax.scatter(x, y, zs=z,
-                       edgecolor=self.edge_color(color),
-                       facecolor=color,
-                       alpha=abs(freq) / max_freq)
+                       facecolor=color)
         self.save_fig(ax, title)
 
-    def plot_grid(self, grid_space: GridSpace, labels: GridLabels, hist: Histogram, title: str):
+    def plot_grid(self, grid_space: GridSpace, labels: GridLabels, title: str):
         if self.skip:
             return
         if self.dim == 3:
-            return self.plot_3d_grid(grid_space, labels, hist, title)
+            return self.plot_3d_grid(grid_space, labels, title)
 
         _, ax = plt.subplots(figsize=self.params.fig_size)
         color_map = Printer.get_color_map(set(labels.values()))
-        max_freq = hist.max_freq()
         for key, label in labels.items():
             if label == -1:
-                continue
-
-            freq = hist.get_by_key(key)
-            if freq == 0:
                 continue
 
             x, y = self.get_original_pt(grid_space.get_low_point_of_grid(grid_space.decode_from_key(key)))
             x_high, y_high = self.get_original_pt(grid_space.high)
-            color = color_map[label] if freq >= 0 else self.reverse_color(color_map[label])
+            color = color_map[label]
             x_width = min(grid_space.width / self.scales[0], x_high - x)
             y_width = min(grid_space.width / self.scales[1], y_high - y)
 
             rectangle = plt.Rectangle((x, y), x_width, y_width,
                                       edgecolor=self.edge_color(color),
                                       facecolor=color,
+                                      fill=True,)
+            ax.add_patch(rectangle)
+        self.save_fig(ax, title)
+
+    def plot_hist(self, grid_space: GridSpace, hist: Histogram, title: str):
+        if self.skip or self.dim >= 3:
+            return
+
+        _, ax = plt.subplots(figsize=self.params.fig_size)
+        color = Printer.get_color_map({0})[0]
+        max_freq = hist.max_freq()
+        for key, freq in hist.items():
+            freq = hist.get_by_key(key)
+            if freq == 0:
+                continue
+
+            x, y = self.get_original_pt(grid_space.get_low_point_of_grid(grid_space.decode_from_key(key)))
+            x_high, y_high = self.get_original_pt(grid_space.high)
+            x_width = min(grid_space.width / self.scales[0], x_high - x)
+            y_width = min(grid_space.width / self.scales[1], y_high - y)
+
+            rectangle = plt.Rectangle((x, y), x_width, y_width,
+                                      edgecolor=self.edge_color(color),
+                                      facecolor=color if freq >= 0 else self.reverse_color(color),
                                       fill=True,
                                       alpha=abs(freq) / max_freq)
             ax.add_patch(rectangle)

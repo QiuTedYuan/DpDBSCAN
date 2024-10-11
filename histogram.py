@@ -85,9 +85,9 @@ class NoisyHistogram(Histogram):
         p = 0.5 * noise_gen.tail_bound(gamma)
         m = noise_gen.generate_binomial(empty_count, p)
         for idx in range(m):
-            j = np.random.randint(universe)
+            j = noise_gen.generate_int(universe)
             while j in histogram.keys() or j in res.keys():
-                j = np.random.randint(universe)
+                j = noise_gen.generate_int(universe)
             noisy_freq = noise_gen.generate_large(gamma)
             res.increment(j, noisy_freq)
         return res
@@ -105,13 +105,6 @@ def max_diff(h1: Histogram, h2: Histogram) -> float:
 class GridLabels:
     def __init__(self):
         self._inner = {}
-
-    @classmethod
-    def label_all(cls, hist: Histogram):
-        res = cls()
-        for key, freq in hist.items():
-            res._inner[key] = 0
-        return res
 
     def values(self):
         return self._inner.values()

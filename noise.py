@@ -58,6 +58,9 @@ class NoiseGenerator(ABC):
     def generate_binomial(self, n, p):
         return self.random_state.binomial(n, p)
 
+    def generate_int(self, n):
+        return self.random_state.randint(n)
+
     @abstractmethod
     def generate(self, size: int) -> Noises:
         pass

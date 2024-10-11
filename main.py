@@ -14,13 +14,13 @@ from datatype_grid import GridSpace
 from datatype_point import Points
 from histogram import Histogram, SumHistogram, NoisyHistogram, max_diff, GridLabels, MockHistogram
 from noise import *
-from plot_data import Printer
+from plot_data import Printer, PrinterParams
 
 # program args
 parser = argparse.ArgumentParser(description='DPDBSCAN Experiments.')
 parser.add_argument('-d', '--dataset', help="Dataset, default moons", required=False,
-                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cabs', 'cabs_tiny',
-                             'crash'],
+                    choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cluto_t8',
+                             'cabs', 'cabs_tiny', 'crash'],
                     default='moons')
 parser.add_argument('-s', '--seed', help="Random Seed, default 0",
                     required=False, default=0, type=int)
@@ -49,7 +49,9 @@ parser.add_argument('--debug', help="log level debug",
                     action='store_true')
 parser.add_argument('--info', help="log level info",
                     action='store_true')
-parser.add_argument('--linear', help="force using linear time histogram",
+parser.add_argument('--linear', help="force using O(n) time histogram",
+                    action='store_true')
+parser.add_argument('--naive', help="force using O(|X|) time histogram",
                     action='store_true')
 
 parser.add_argument('--skip_dbscan', action='store_true')
@@ -61,7 +63,8 @@ parser.add_argument('--run_trivial', action='store_true')
 args = parser.parse_args()
 
 # prepare data
-data_provider, printer_params = get_data(args.dataset, args.dpi, args.ext)
+data_provider = get_data(args.dataset)
+printer_params = PrinterParams.from_data(data_provider, args.dpi, args.ext)
 
 pts = data_provider.get_data()
 n, dim = pts.get_size(), pts.get_dim()
@@ -144,23 +147,29 @@ if RUN_DP_DBSCAN:
     step_timer = time.time()
     grid_space = GridSpace(dim, low, high, alpha, grid_scale)
     num_grids = grid_space.num_grids
-    logging.info("[DP-DBSCAN] cell width: %.5g, num cells: %d", grid_space.width, num_grids)
+    logging.info("[DP-DBSCAN] cell width: %.5g, num cells: %d, kappa: %d", grid_space.width, num_grids, grid_space.kappa)
 
     grid_counts = Histogram.build_from_pts(pts, grid_space)
     logging.info("[DP-DBSCAN][Time] collect histogram: %.5g seconds", time.time() - step_timer)
 
     # add noise
     step_timer = time.time()
-    spase_n = grid_counts.size()
-    if spase_n < num_grids / 2. or args.linear:
-        T = noise_gen.get_threshold(spase_n / 2. / num_grids)
+    linear: bool = n <= num_grids / 2.
+    if args.linear:
+        linear = True
+    elif args.naive:
+        linear = False
+
+    if linear:
+        noise_bound = noise_gen.max_sum_noise(beta, num_grids, grid_space.kappa)
+        T = 0.3 * noise_bound / grid_space.kappa
+        noise_bound *= 1.3
+        logging.info("[DP-DBSCAN][Linear] threshold T: %.3g", T)
         noisy_counts = NoisyHistogram.linear_time_build(grid_counts, noise_gen, num_grids, T)
-        noise_bound = (T * len(grid_space.neighbor_offsets) +
-                       noise_gen.max_sum_noise(beta, num_grids, len(grid_space.neighbor_offsets)))
         logging.info("[DP-DBSCAN][Time] noisy histogram O(n): %.5g seconds", time.time() - step_timer)
     else:
         noisy_counts = NoisyHistogram.naive_build(grid_counts, noise_gen, num_grids)
-        noise_bound = noise_gen.max_sum_noise(beta, num_grids, len(grid_space.neighbor_offsets))
+        noise_bound = noise_gen.max_sum_noise(beta, num_grids, grid_space.kappa)
         logging.info("[DP-DBSCAN][Time] noisy histogram O(|X|): %.5g seconds", time.time() - step_timer)
 
     # add noise
@@ -181,10 +190,9 @@ if RUN_DP_DBSCAN:
     logging.info("[DP-DBSCAN][Time] %.5g seconds", time.time() - timer)
     logging.info("[DP-DBSCAN] num clusters: %d", num_clusters)
 
-    printer.plot_grid(grid_space, labels=GridLabels.label_all(noisy_counts), hist=noisy_counts, title="noisy_counts")
-    printer.plot_grid(grid_space, labels=GridLabels.label_all(noisy_sum), hist=noisy_sum, title="noisy_sum")
-    printer.plot_grid(grid_space, labels=grid_labels, hist=MockHistogram(),
-                      title="dp_dbscan_" + str(epsilon) + "_grids")
+    printer.plot_hist(grid_space, hist=noisy_counts, title="noisy_counts")
+    printer.plot_hist(grid_space, hist=noisy_sum, title="noisy_sum")
+    printer.plot_grid(grid_space, labels=grid_labels, title="dp_dbscan_" + str(epsilon) + "_grids")
 
     if data_provider.has_true_labels():
         point_labels = grid_labels.obtain_point_labels(pts, grid_space)
@@ -201,7 +209,7 @@ if RUN_DP_DBSCAN:
         sum_hist = SumHistogram.build_from_counts(grid_counts, grid_space)
         logging.debug("[DP-DBSCAN] max noise seen: %.2f, max noise expected: %.2f, min_pts: %d",
                       max_diff(sum_hist, noisy_sum), noise_bound, min_pts)
-        printer.plot_grid(grid_space, labels=GridLabels.label_all(sum_hist), hist=sum_hist, title="neighbor_sum")
+        printer.plot_hist(grid_space, hist=sum_hist, title="neighbor_sum")
 
 # k-means
 if RUN_DP_KMEANS:

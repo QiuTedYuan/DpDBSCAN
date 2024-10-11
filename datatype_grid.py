@@ -22,6 +22,7 @@ class GridSpace:
         self.grids_per_dim = tuple(np.add(np.floor_divide(np.subtract(high, low), self.width), 1).astype(dtype=int))
         self.num_grids: int = np.prod(self.grids_per_dim)
         self.neighbor_offsets = GridSpace.__neighbor_offsets(self.dim, radius=self.alpha / self.width)
+        self.kappa = len(self.neighbor_offsets)
 
         self.encode_as_key = lru_cache(maxsize=None)(self.__encode_as_key)
         self.decode_from_key = lru_cache(maxsize=None)(self.__decode_from_key)

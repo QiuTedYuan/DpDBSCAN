@@ -156,7 +156,7 @@ class ArffDataProvider(DataProvider):
             return x
 
     def __init__(self, path, params):
-        data, meta = arff.loadarff('clustering-benchmark/src/main/resources/datasets/artificial/' + path)
+        data, meta = arff.loadarff('clustering-benchmark/src/main/resources/datasets/' + path)
         df = pd.DataFrame(data)
         self.pts = Points(df.iloc[:, :-1].to_numpy())
         self.labels = df.iloc[:, -1].map(ArffDataProvider.normalize_enum).astype(int).to_numpy()
@@ -168,56 +168,48 @@ class ArffDataProvider(DataProvider):
     @classmethod
     def cluto_t4(cls):
         params = {"alpha": 9, "min_samples": 11, "grid_scale": 1}
-        return cls('cluto-t4-8k.arff', params)
+        return cls('artificial/cluto-t4-8k.arff', params)
 
     @classmethod
     def cluto_t5(cls):
         params = {"alpha": 9, "min_samples": 20, "grid_scale": 1}
-        return cls('cluto-t5-8k.arff', params)
+        return cls('artificial/cluto-t5-8k.arff', params)
 
     @classmethod
     def cluto_t7(cls):
         params = {"alpha": 12, "min_samples": 20, "grid_scale": 1}
-        return cls('cluto-t7-10k.arff', params)
+        return cls('artificial/cluto-t7-10k.arff', params)
 
-
-class PrinterParams:
-    def __init__(self, dpi: int, ext: str, fig_size: (int, int) = (10, 10),
-                 draw_label: bool = True, draw_edge: bool = True, font_size: int = 12, marker_size: int = 4):
-        self.fig_size = fig_size
-        self.draw_label = draw_label
-        self.draw_edge = draw_edge
-        self.dpi = dpi
-        self.ext = ext
-        self.marker_size = marker_size
-        self.font_size = font_size
+    @classmethod
+    def cluto_t8(cls):
+        params = {"alpha": 11, "min_samples": 11, "grid_scale": 1}
+        return cls('artificial/cluto-t8-8k.arff', params)
 
 
 # data_provider, draw_label, draw_edge, fig_size
-def get_data(name: str, dpi, ext) -> (DataProvider, PrinterParams):
-    default_params = PrinterParams(dpi, ext)
-    cluto_params = PrinterParams(dpi, ext, fig_size=(10, 6))
-    real_params = PrinterParams(dpi, ext, draw_label=False, draw_edge=False)
+def get_data(name: str) -> DataProvider:
     match name:
         case 'toy':
-            return SimpleDataProvider.toy(), default_params
+            return SimpleDataProvider.toy()
         case 'moons':
-            return SimpleDataProvider.moons(2000, 30), default_params
+            return SimpleDataProvider.moons(2000, 30)
         case 'blobs':
-            return SimpleDataProvider.blobs(2000, 30), default_params
+            return SimpleDataProvider.blobs(2000, 30)
         case 'circles':
-            return SimpleDataProvider.circles(2000, 30), default_params
+            return SimpleDataProvider.circles(2000, 30)
         case 'cluto_t4':
-            return ArffDataProvider.cluto_t4(), cluto_params
+            return ArffDataProvider.cluto_t4()
         case 'cluto_t5':
-            return ArffDataProvider.cluto_t5(), cluto_params
+            return ArffDataProvider.cluto_t5()
         case 'cluto_t7':
-            return ArffDataProvider.cluto_t7(), cluto_params
+            return ArffDataProvider.cluto_t7()
+        case 'cluto_t8':
+            return ArffDataProvider.cluto_t8()
         case 'crash':
-            return LongitudeLatitudeDataProvider.crash(), real_params
+            return LongitudeLatitudeDataProvider.crash()
         case 'cabs_tiny':
-            return LongitudeLatitudeDataProvider.cabs_tiny(), real_params
+            return LongitudeLatitudeDataProvider.cabs_tiny()
         case 'cabs':
-            return LongitudeLatitudeDataProvider.cabs(), real_params
+            return LongitudeLatitudeDataProvider.cabs()
         case _:
             raise Exception("Unsupported dataset")
