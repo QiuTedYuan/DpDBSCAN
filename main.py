@@ -20,7 +20,7 @@ from plot_data import Printer, PrinterParams
 parser = argparse.ArgumentParser(description='DPDBSCAN Experiments.')
 parser.add_argument('-d', '--dataset', help="Dataset, default moons", required=False,
                     choices=['moons', 'blobs', 'circles', 'cluto_t4', 'cluto_t5', 'cluto_t7', 'cluto_t8',
-                             'cabs', 'cabs_tiny', 'crash'],
+                             'cabs', 'cabs_tiny', 'crash', 'har'],
                     default='moons')
 parser.add_argument('-s', '--seed', help="Random Seed, default 0",
                     required=False, default=0, type=int)
@@ -81,8 +81,6 @@ elif args.info:
 else:
     log_level = logging.ERROR
 logging.basicConfig(level=log_level)
-logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.5g, min_pts=%d',
-             n, dim, low, high, alpha, min_pts)
 
 seed, epsilon, delta, beta = args.seed, args.epsilon, args.delta, args.beta
 noise_gen = get_noise_gen(args.noise, args.seed, 1,  args.epsilon, args.delta)
@@ -102,6 +100,9 @@ if data_provider.has_true_labels():
 else:
     true_labels = np.arange(0, n)
     n_clusters = 3
+
+logging.info('[Dataset] n=%d, d=%d, low=%s, high=%s, alpha=%.5g, min_pts=%d, num_cluster:%d',
+             n, dim, low, high, alpha, min_pts, n_clusters)
 
 RUN_DBSCAN = not args.skip_dbscan
 RUN_DP_DBSCAN = not args.skip_dp_dbscan
@@ -162,14 +163,18 @@ if RUN_DP_DBSCAN:
 
     if linear:
         noise_bound = noise_gen.max_sum_noise(beta, num_grids, grid_space.kappa)
-        T = 0.3 * noise_bound / grid_space.kappa
-        noise_bound *= 1.3
-        logging.info("[DP-DBSCAN][Linear] threshold T: %.3g", T)
+        if num_grids > 2. * n:
+            T = 1 / epsilon * np.log(num_grids / n)
+        else:
+            T = noise_bound / grid_space.kappa
+        noise_bound += T * grid_space.kappa
+        logging.info("[DP-DBSCAN][Linear] threshold T: %.3g, noise_bound: %.3g", T, noise_bound)
         noisy_counts = NoisyHistogram.linear_time_build(grid_counts, noise_gen, num_grids, T)
         logging.info("[DP-DBSCAN][Time] noisy histogram O(n): %.5g seconds", time.time() - step_timer)
     else:
         noisy_counts = NoisyHistogram.naive_build(grid_counts, noise_gen, num_grids)
         noise_bound = noise_gen.max_sum_noise(beta, num_grids, grid_space.kappa)
+        logging.info("[DP-DBSCAN][Naive] noise_bound: %.3g",  noise_bound)
         logging.info("[DP-DBSCAN][Time] noisy histogram O(|X|): %.5g seconds", time.time() - step_timer)
 
     # add noise
@@ -190,8 +195,8 @@ if RUN_DP_DBSCAN:
     logging.info("[DP-DBSCAN][Time] %.5g seconds", time.time() - timer)
     logging.info("[DP-DBSCAN] num clusters: %d", num_clusters)
 
-    printer.plot_hist(grid_space, hist=noisy_counts, title="noisy_counts")
-    printer.plot_hist(grid_space, hist=noisy_sum, title="noisy_sum")
+    #printer.plot_hist(grid_space, hist=noisy_counts, title="noisy_counts")
+    #printer.plot_hist(grid_space, hist=noisy_sum, title="noisy_sum")
     printer.plot_grid(grid_space, labels=grid_labels, title="dp_dbscan_" + str(epsilon) + "_grids")
 
     if data_provider.has_true_labels():

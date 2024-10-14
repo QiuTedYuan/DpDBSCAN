@@ -6,7 +6,7 @@ from shapely.geometry import box
 from shapely.ops import voronoi_diagram
 from shapely.plotting import plot_polygon
 
-from data_provider import DataProvider, ArffDataProvider, LongitudeLatitudeDataProvider
+from data_provider import DataProvider, ArffDataProvider, LongitudeLatitudeDataProvider, HighDimDataProvider
 from datatype_grid import GridSpace
 from datatype_point import Points, PointLabels, Point
 from histogram import Histogram, GridLabels
@@ -29,6 +29,8 @@ class PrinterParams:
             return cls(dpi, ext, fig_size=(10, 6))
         elif isinstance(data_provider, LongitudeLatitudeDataProvider):
             return cls(dpi, ext, draw_label=False, draw_edge=False)
+        elif isinstance(data_provider, HighDimDataProvider):
+            return cls(dpi, ext, draw_label=True, draw_edge=False)
         else:
             return cls(dpi, ext)
 

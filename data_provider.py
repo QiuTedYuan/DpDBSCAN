@@ -78,6 +78,24 @@ class SimpleDataProvider(DataProvider):
         return cls(pts, labels, params)
 
 
+class HighDimDataProvider(DataProvider):
+    def has_true_labels(self) -> bool:
+        return True
+
+    def __init__(self, pts, labels, params):
+        self.pts = Points(pts)
+        self.labels = labels
+        self.params = params
+
+    @classmethod
+    def har70(cls):
+        df = pd.read_csv("datasets/har70plus/501.csv", delimiter=',')
+        pts = df.iloc[:, 1:4].to_numpy()
+        _, labels = np.unique(df.iloc[:, -1].to_numpy(), return_inverse=True)
+        params = {"alpha": 0.01, "min_samples": 5, "grid_scale": 1}
+        return cls(pts, labels, params)
+
+
 # each longitude (x) will be scaled by a factor of cos(latitude), to approximate the real distance
 # this differs from using km by a scale factor of km_per_latitude()
 class LongitudeLatitudeDataProvider(DataProvider):
@@ -122,7 +140,7 @@ class LongitudeLatitudeDataProvider(DataProvider):
         data = np.array(end_points)
         long_lat = data[((data[:, 0] <= -122.3) & (data[:, 0] >= -122.6) &
                          (data[:, 1] >= 37.55) & (data[:, 1] <= 37.85))]
-        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1,}
+        params = {"alpha": 0.02 / cls.km_per_latitude(), "min_samples": 500, "grid_scale": 1, }
         return cls(long_lat, params, 37.8)
 
     @classmethod
@@ -211,5 +229,7 @@ def get_data(name: str) -> DataProvider:
             return LongitudeLatitudeDataProvider.cabs_tiny()
         case 'cabs':
             return LongitudeLatitudeDataProvider.cabs()
+        case 'har':
+            return HighDimDataProvider.har70()
         case _:
             raise Exception("Unsupported dataset")
